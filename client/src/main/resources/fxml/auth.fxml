@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<VBox prefHeight="140.0" prefWidth="400.0" spacing="5" xmlns="http://javafx.com/javafx/1" xmlns:fx="http://javafx.com/fxml/" fx:controller="fx.AuthController">
+    <Label text="Login" />
+    <TextField fx:id="loginTextField" />
+    <Label text="Password" />
+    <PasswordField fx:id="passwordTextField" />
+   <HBox alignment="CENTER_RIGHT" prefHeight="31.0" prefWidth="400.0" spacing="5.0">
+      <children>
+          <Button fx:id="authButton" onAction="#btnAuth" text="Connect">
+            <opaqueInsets>
+               <Insets />
+            </opaqueInsets>
+         </Button>
+         <Button fx:id="cancelButton" onAction="#bthCancel" text="Cancel" />
+      </children>
+      <opaqueInsets>
+         <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
+      </opaqueInsets>
+      <padding>
+         <Insets bottom="3.0" left="3.0" right="3.0" top="3.0" />
+      </padding>
+   </HBox>
+   <padding>
+      <Insets bottom="5.0" left="5.0" right="5.0" top="5.0" />
+   </padding>
+</VBox>

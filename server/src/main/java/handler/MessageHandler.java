@@ -1,5 +1,6 @@
 package handler;
 
+import db.Database;
 import file.FileInfo;
 import message.*;
 import io.netty.channel.ChannelHandlerContext;
@@ -17,9 +18,8 @@ import java.util.stream.Collectors;
 public class MessageHandler extends SimpleChannelInboundHandler<AbstractMessage> {
 
     private static String rootDir = "./server/files";
-    private static String currentDir = rootDir;
     private Path rootPath = Paths.get(rootDir);
-    private Path currentPath = Paths.get(currentDir);
+    private Path currentPath = Paths.get(rootDir);
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
@@ -44,7 +44,7 @@ public class MessageHandler extends SimpleChannelInboundHandler<AbstractMessage>
                 break;
             case DIR_CREATE_REQUEST:
                 DirCreateRequest dirCreateRequest = (DirCreateRequest) message;
-                path = Paths.get(currentDir, dirCreateRequest.getName());
+                path = Paths.get(currentPath.toFile().getPath(), dirCreateRequest.getName());
                 if (Files.exists(path)) {
                     ctx.writeAndFlush(new DirCreateResponse(-1, String.format("Directory %s already exists", dirCreateRequest.getName())));
                 } else {
@@ -54,7 +54,7 @@ public class MessageHandler extends SimpleChannelInboundHandler<AbstractMessage>
                 break;
             case FILE_UPLOAD_REQUEST:
                 FileUploadRequest fileUploadRequest = (FileUploadRequest) message;
-                path = Paths.get(currentDir, ((FileUploadRequest) message).getName());
+                path = Paths.get(currentPath.toFile().getPath(), ((FileUploadRequest) message).getName());
                 try (FileOutputStream os = new FileOutputStream(path.toFile())) {
                     os.write(fileUploadRequest.getContent());
                 } catch (IOException e) {
@@ -64,13 +64,13 @@ public class MessageHandler extends SimpleChannelInboundHandler<AbstractMessage>
                 break;
             case FILE_DELETE_REQUEST:
                 FileDeleteRequest fileDeleteRequest = (FileDeleteRequest) message;
-                path = Paths.get(currentDir, fileDeleteRequest.getName());
+                path = Paths.get(currentPath.toFile().getPath(), fileDeleteRequest.getName());
                 Files.deleteIfExists(path);
                 ctx.writeAndFlush(new FileDeleteResponse(0, "Successful"));
                 break;
             case FILE_DOWNLOAD_REQUEST:
                 FileDownloadRequest fileDownloadRequest = (FileDownloadRequest) message;
-                path = Paths.get(currentDir, fileDownloadRequest.getName());
+                path = Paths.get(currentPath.toFile().getPath(), fileDownloadRequest.getName());
                 try {
                     FileDownloadResponse fileDownloadResponse = new FileDownloadResponse(path);
                     ctx.writeAndFlush(fileDownloadResponse);
@@ -88,6 +88,22 @@ public class MessageHandler extends SimpleChannelInboundHandler<AbstractMessage>
                     currentPath = currentPath.getParent();
                     ctx.writeAndFlush(new DirUpResponse(0, "Successful"));
                 }
+                break;
+            case AUTH_REQUEST:
+                AuthRequest authRequest = (AuthRequest) message;
+                String userName = Database.getUsername(authRequest.getLogin(), authRequest.getPassword());
+                AuthResponse authResponse = null;
+                if (userName == null) {
+                    authResponse = new AuthResponse(null, -1, "Incorrect login or password");
+                } else {
+                    authResponse = new AuthResponse(userName, 0, "Successful");
+                    rootPath = Paths.get(rootDir, authRequest.getLogin());
+                    currentPath = Paths.get(rootDir, authRequest.getLogin());
+                    if (!Files.exists(currentPath)) {
+                        Files.createDirectory(currentPath);
+                    }
+                }
+                ctx.writeAndFlush(authResponse);
                 break;
         }
     }

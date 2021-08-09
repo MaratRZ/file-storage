@@ -18,6 +18,7 @@ public class Network {
     private final CallBack callBack;
     private SocketChannel channel;
     private EventLoopGroup worker;
+    public static Network network;
 
     public Network(CallBack callBack, String host, int port) {
         this.callBack = callBack;
