@@ -26,5 +26,5 @@
       </padding>
     </HBox>
     <TableView fx:id="fileTableView" VBox.vgrow="ALWAYS" focusTraversable="true" />
-    <TextField VBox.vgrow="ALWAYS" editable="false" focusTraversable="false" />
+    <TextField fx:id="statusBar" VBox.vgrow="ALWAYS" editable="false" focusTraversable="false" />
 </VBox>

@@ -1,8 +1,13 @@
 package fx;
 
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.stage.FileChooser;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
 import message.*;
-import properties.Config;
+import properties.NetworkProperties;
 import file.FileInfo;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleObjectProperty;
@@ -26,15 +31,72 @@ import java.util.*;
 @Slf4j
 public class MainController implements Initializable {
 
-    private Network network;
+    private Stage authStage;
+    private AuthController authController;
     @FXML
     private TableView fileTableView;
+    @FXML
+    private TextField statusBar;
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+        openConnection(NetworkProperties.getHost(), NetworkProperties.getPort());
+        openAuthDialog();
         initFileTableView();
         AddMouseListener();
-        openConnection(Config.getHost(), Config.getPort());
+    }
+
+    private void createAuthStage() {
+        try {
+            FXMLLoader loader = new FXMLLoader(getClass().getClassLoader().getResource("fxml/auth.fxml"));
+            Parent parent = loader.load();
+            authController = loader.getController();
+            authStage = new Stage();
+            authStage.setOnCloseRequest(event -> {
+                closeApp();
+            });
+            authStage.setTitle("Connection");
+            authStage.setScene(new Scene(parent));
+            authStage.initModality(Modality.APPLICATION_MODAL);
+            authStage.setResizable(false);
+        } catch (IOException e) {
+            log.error("Error creating the authorization window", e);
+            closeApp();
+        }
+    }
+
+    public void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e) {
+            log.error("", e);
+        }
+    }
+
+    private void openAuthDialog() {
+        long waitTime = System.currentTimeMillis();
+
+        createAuthStage();
+
+        while (!Network.network.isConnected()) {
+            if (System.currentTimeMillis() - waitTime > 5000) {
+                Alert alert = new Alert(Alert.AlertType.ERROR, "", ButtonType.OK);
+                alert.setHeaderText("Failed to connect to the server");
+                alert.showAndWait();
+                closeApp();
+            }
+            sleep(100);
+        }
+
+        while (true) {
+            if (NetworkProperties.isAuthSuccess()) {
+                authStage.close();
+                break;
+            } else if (!NetworkProperties.isAuthRequestSent()) {
+                authStage.showAndWait();
+                sleep(100);
+            }
+        }
     }
 
     private void initFileTableView() {
@@ -119,7 +181,7 @@ public class MainController implements Initializable {
     }
 
     public void openConnection(String host, int port) {
-        network = new Network(message -> {
+        Network.network = new Network(message -> {
             log.debug("Received message type: {}", message.getMessageType());
             switch (message.getMessageType()) {
                 case FILE_LIST_RESPONSE:
@@ -170,18 +232,32 @@ public class MainController implements Initializable {
                     });
                     break;
                 case DIR_DOWN_RESPONSE:
-                    sendFileListRequestMessage();
-                    break;
                 case DIR_UP_RESPONSE:
                     sendFileListRequestMessage();
+                    break;
+                case AUTH_RESPONSE:
+                    AuthResponse authResponse = (AuthResponse) message;
+                    if (authResponse.getResultCode() == 0) {
+                        statusBar.setText("Username: " + authResponse.getUserName());
+                        NetworkProperties.setAuthSuccess(true);
+                        sendFileListRequestMessage();
+                    } else {
+                        NetworkProperties.setAuthRequestSent(false);
+                        Platform.runLater(() -> {
+                            Alert alert = new Alert(Alert.AlertType.ERROR, "", ButtonType.OK);
+                            alert.setHeaderText(authResponse.getResultMessage());
+                            alert.showAndWait();
+                            authController.clearFields();
+                        });
+                    }
                     break;
             }
         }, host, port);
     }
 
     public void closeConnection() {
-        if (network != null) {
-            network.close();
+        if (Network.network != null) {
+            Network.network.close();
             log.info("Network closed");
         }
     }
@@ -217,22 +293,21 @@ public class MainController implements Initializable {
 
     private void closeApp() {
         closeConnection();
-        Platform.exit();
         System.exit(0);
     }
 
     private void sendFileListRequestMessage() {
-        network.writeMessage(new FileListRequest());
+        Network.network.writeMessage(new FileListRequest());
     }
 
     private void sendCreateDirRequestMessage(String name) {
-        network.writeMessage(new DirCreateRequest(name));
+        Network.network.writeMessage(new DirCreateRequest(name));
     }
 
     private void fileUpload(Path path) {
         try {
             FileUploadRequest fileUploadRequest = new FileUploadRequest(path);
-            network.writeMessage(fileUploadRequest);
+            Network.network.writeMessage(fileUploadRequest);
         } catch (Exception e) {
             log.error("Upload File error: ", e);
             Alert alert = new Alert(Alert.AlertType.ERROR, "", ButtonType.OK);
@@ -242,19 +317,19 @@ public class MainController implements Initializable {
     }
 
     private void sendFileDeleteRequest(String name) {
-        network.writeMessage(new FileDeleteRequest(name));
+        Network.network.writeMessage(new FileDeleteRequest(name));
     }
 
     private void sendFileDownloadRequest(String name) {
-        network.writeMessage(new FileDownloadRequest(name));
+        Network.network.writeMessage(new FileDownloadRequest(name));
     }
 
     private void sendDirDownRequest(String name) {
-        network.writeMessage(new DirDownRequest(name));
+        Network.network.writeMessage(new DirDownRequest(name));
     }
 
     private void sendDirUpRequest() {
-        network.writeMessage(new DirUpRequest());
+        Network.network.writeMessage(new DirUpRequest());
     }
 
     public void actionRefresh(ActionEvent actionEvent) {

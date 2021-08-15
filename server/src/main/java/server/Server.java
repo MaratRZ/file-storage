@@ -1,5 +1,6 @@
 package server;
 
+import db.Database;
 import handler.MessageHandler;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
@@ -17,6 +18,12 @@ import lombok.extern.slf4j.Slf4j;
 public class Server {
 
     public Server(int port) {
+        try {
+            Database.openDB();
+        } catch (Exception e) {
+            log.error("Database open error", e);
+            System.exit(0);
+        }
         EventLoopGroup auth = new NioEventLoopGroup(1);
         EventLoopGroup worker = new NioEventLoopGroup();
         try {
